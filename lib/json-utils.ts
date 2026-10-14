@@ -157,12 +157,14 @@ type TsType =
   | { kind: "union"; of: TsType[] };
 
 function pascalCase(s: string): string {
-  return s
-    .replace(/[^A-Za-z0-9]+/g, " ")
-    .split(" ")
-    .filter(Boolean)
-    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-    .join("") || "Item";
+  const result =
+    s
+      .replace(/[^A-Za-z0-9]+/g, " ")
+      .split(" ")
+      .filter(Boolean)
+      .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+      .join("") || "Item";
+  return /^[0-9]/.test(result) ? `_${result}` : result;
 }
 
 function singularize(name: string): string {

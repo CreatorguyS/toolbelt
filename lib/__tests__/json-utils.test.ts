@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import ts from "typescript";
 import {
   format,
   minify,
@@ -145,7 +146,30 @@ describe("toTypeScript array items", () => {
   });
 
   it("turns keys with different types into a union", () => {
-    const ts = toTypeScript('[{"id":1},{"id":"x"}]');
-    expect(ts.ok && ts.value).toContain("id: number | string;");
+    const tsResult = toTypeScript('[{"id":1},{"id":"x"}]');
+    expect(tsResult.ok && tsResult.value).toContain("id: number | string;");
+  });
+
+  it("prefixes interface names starting with a digit with an underscore", () => {
+    const single = toTypeScript('{"404":{"msg":"x"}}');
+    expect(single.ok).toBe(true);
+    if (single.ok) {
+      expect(single.value).toContain("export interface _404 {\n  msg: string;\n}");
+      expect(single.value).toContain('"404": _404;');
+      const transpile = ts.transpileModule(single.value, { reportDiagnostics: true });
+      expect(transpile.diagnostics ?? []).toHaveLength(0);
+    }
+
+    const multi = toTypeScript(
+      '{"2fa":{"enabled":true},"1":{"name":"a"},"2":{"name":"b"},"2fas":[{"a":1}]}',
+    );
+    expect(multi.ok).toBe(true);
+    if (multi.ok) {
+      expect(multi.value).toContain("export interface _2fa");
+      expect(multi.value).toContain("export interface _1");
+      expect(multi.value).toContain("export interface _2");
+      const transpile = ts.transpileModule(multi.value, { reportDiagnostics: true });
+      expect(transpile.diagnostics ?? []).toHaveLength(0);
+    }
   });
 });
