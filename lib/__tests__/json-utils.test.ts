@@ -172,4 +172,46 @@ describe("toTypeScript array items", () => {
       expect(transpile.diagnostics ?? []).toHaveLength(0);
     }
   });
+
+  it("gives nested objects a free name when the JSON is a top-level array", () => {
+    const single = toTypeScript('[{"root":{"x":1}}]');
+    expect(single.ok).toBe(true);
+    if (single.ok) {
+      expect(single.value).toContain("export type Root = RootItem[];");
+      expect(single.value).toContain("export interface Root2 {\n  x: number;\n}");
+      expect(single.value).toContain("export interface RootItem {\n  root: Root2;\n}");
+      const transpile = ts.transpileModule(single.value, { reportDiagnostics: true });
+      expect(transpile.diagnostics ?? []).toHaveLength(0);
+    }
+
+    const deeper = toTypeScript('[{"a":{"root":{"x":1}}}]');
+    expect(deeper.ok).toBe(true);
+    if (deeper.ok) {
+      expect(deeper.value).toContain("export type Root = RootItem[];");
+      expect(deeper.value).toContain("export interface Root2 {\n  x: number;\n}");
+      expect(deeper.value).toContain("root: Root2;");
+      const transpile = ts.transpileModule(deeper.value, { reportDiagnostics: true });
+      expect(transpile.diagnostics ?? []).toHaveLength(0);
+    }
+
+    const uppercase = toTypeScript('[{"Root":{"x":1}}]');
+    expect(uppercase.ok).toBe(true);
+    if (uppercase.ok) {
+      expect(uppercase.value).toContain("export type Root = RootItem[];");
+      expect(uppercase.value).toContain("export interface Root2 {\n  x: number;\n}");
+      expect(uppercase.value).toContain("Root: Root2;");
+      const transpile = ts.transpileModule(uppercase.value, { reportDiagnostics: true });
+      expect(transpile.diagnostics ?? []).toHaveLength(0);
+    }
+
+    const topLevelObj = toTypeScript('{"root":{"x":1}}');
+    expect(topLevelObj.ok).toBe(true);
+    if (topLevelObj.ok) {
+      expect(topLevelObj.value).toBe(
+        "export interface Root2 {\n  x: number;\n}\n\nexport interface Root {\n  root: Root2;\n}",
+      );
+      const transpile = ts.transpileModule(topLevelObj.value, { reportDiagnostics: true });
+      expect(transpile.diagnostics ?? []).toHaveLength(0);
+    }
+  });
 });

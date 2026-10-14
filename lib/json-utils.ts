@@ -247,23 +247,31 @@ function inferType(value: unknown, hint: string): TsType {
 
 // Interfaces are named and collected only after array items are merged, so
 // each merged item type becomes one interface instead of one per item.
-function collectInterfaces(t: TsType, interfaces: Map<string, Extract<TsType, { kind: "object" }>>): void {
-  if (t.kind === "array") return collectInterfaces(t.of, interfaces);
-  if (t.kind === "union") return t.of.forEach((u) => collectInterfaces(u, interfaces));
+function collectInterfaces(
+  t: TsType,
+  interfaces: Map<string, Extract<TsType, { kind: "object" }>>,
+  reserved?: Set<string>,
+): void {
+  if (t.kind === "array") return collectInterfaces(t.of, interfaces, reserved);
+  if (t.kind === "union") return t.of.forEach((u) => collectInterfaces(u, interfaces, reserved));
   if (t.kind !== "object" || interfaces.get(t.name) === t) return;
   // Claim the name before the fields so a parent keeps it over a same-named child,
   // then re-insert so children are still rendered before their parent.
-  t.name = uniqueInterfaceName(t.name, interfaces);
+  t.name = uniqueInterfaceName(t.name, interfaces, reserved);
   interfaces.set(t.name, t);
-  t.fields.forEach((f) => collectInterfaces(f.type, interfaces));
+  t.fields.forEach((f) => collectInterfaces(f.type, interfaces, reserved));
   interfaces.delete(t.name);
   interfaces.set(t.name, t);
 }
 
-function uniqueInterfaceName(base: string, interfaces: Map<string, unknown>): string {
-  if (!interfaces.has(base)) return base;
+function uniqueInterfaceName(
+  base: string,
+  interfaces: Map<string, unknown>,
+  reserved?: Set<string>,
+): string {
+  if (!interfaces.has(base) && !reserved?.has(base)) return base;
   let i = 2;
-  while (interfaces.has(`${base}${i}`)) i++;
+  while (interfaces.has(`${base}${i}`) || reserved?.has(`${base}${i}`)) i++;
   return `${base}${i}`;
 }
 
@@ -290,7 +298,8 @@ export function toTypeScript(raw: string, rootName = "Root"): Result<string> {
   const parsed = llParse(raw);
   const interfaces = new Map<string, Extract<TsType, { kind: "object" }>>();
   const rootType = inferType(parsed, rootName);
-  collectInterfaces(rootType, interfaces);
+  const reserved = rootType.kind !== "object" ? new Set([rootName]) : undefined;
+  collectInterfaces(rootType, interfaces, reserved);
 
   // Collect and dedupe interfaces — simple approach: render each once in insertion order
   const out: string[] = [];
